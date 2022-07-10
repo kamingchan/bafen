@@ -1,0 +1,58 @@
+name: Generate RSS from source
+
+on:
+  push:
+    branches: [master]
+
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 6 * * *"
+
+jobs:
+  build:
+    name: Generate RSS from source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.8
+        uses: actions/setup-go@v2
+        with:
+          go-version: ^1.18
+        id: go
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Get dependencies
+        run: go get -v -t -d ./...
+      - name: Create dist folder
+        run: mkdir -p dist
+
+      - name: Generate RSS
+        run: go run main.go
+
+      - name: Push artifacts to release branch
+        run: |
+          git config --local user.email "bot@terrychan.me"
+          git config --local user.name "github-action[bot]"
+
+          git fetch
+          git checkout release
+
+          git checkout --orphan release-orphan
+          git rm -rf .
+
+          cp -rf dist/*.xml ./
+
+          git add *.xml
+          git commit -am "Updated at $(date)"
+
+          git branch -D release
+          git branch -m release
+
+      - name: GitHub Push
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: release
+          force: true
